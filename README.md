@@ -1,16 +1,95 @@
 # HW-SW-project-00460882
 
-HW/SW co-design project: profiling, optimizing, and proposing hardware
-acceleration for benchmarks from the `pyperformance` suite.
+HW/SW co-design project: profile, optimize, and propose a hardware
+acceleration solution for two benchmarks from the `pyperformance` suite.
 
-## Environment
+This README is written as a step-by-step guide — follow it top to bottom to
+go from a blank environment to a finished submission.
+
+## Project Roadmap
+
+1. [Set up the environment](#1-set-up-the-environment)
+2. [Choose your two benchmarks](#2-choose-your-two-benchmarks)
+3. [Understand each benchmark](#3-understand-each-benchmark)
+4. [Profile with perf](#4-profile-with-perf)
+5. [Generate a flame graph](#5-generate-a-flame-graph)
+6. [Detect bottlenecks](#6-detect-bottlenecks)
+7. [Optimize the benchmark](#7-optimize-the-benchmark)
+8. [Re-measure and compare (target: ≥7% on at least 2 benchmarks)](#8-re-measure-and-compare)
+9. [Propose a hardware accelerator](#9-propose-a-hardware-accelerator)
+10. [Repository structure & required deliverables](#10-repository-structure--required-deliverables)
+11. [Document your AI tool usage](#11-document-your-ai-tool-usage)
+12. [Prepare the presentation](#12-prepare-the-presentation)
+
+---
+
+## 1. Set Up the Environment
 
 - Benchmarks run inside a QEMU/KVM Ubuntu 22.04 (jammy) VM.
-- Profiling uses `perf` with Python debug symbols (`python3-dbg`) so that
-  internal CPython function calls are visible in the report.
-- `pyperformance` is used to run the benchmarks themselves.
+- Profiling uses `perf` with Python debug symbols (`python3-dbg`) so internal
+  CPython function calls are visible in the report.
+- `pyperformance` runs the benchmarks themselves.
 
-## Running a Benchmark and Generating a perf Report
+Check the tools are present in the VM:
+
+```
+which git perf python3 python3-dbg pip3
+pip3 show pyperformance
+```
+
+If `pyperformance` is missing: `pip3 install pyperformance`.
+If `python3-dbg` is missing: `apt-get update && apt-get install -y python3-dbg`.
+
+Clone this repo inside the VM and do all work under it:
+
+```
+git clone git@github.com:ChrisShakkour/HW-SW-project-00460882.git
+cd HW-SW-project-00460882
+```
+
+## 2. Choose Your Two Benchmarks
+
+Pick **2** benchmarks from the approved list below (the numbering carries no
+meaning — it's just an index into the assignment's table).
+
+| Index | Name of Benchmark      |
+|-------|-------------------------|
+| 1     | Raytrace                |
+| 2     | Deepcopy                |
+| 3     | Mdp                     |
+| 4     | Pathlib                 |
+| 5     | Pickle and pickle_dict  |
+| 6     | Pyflate                 |
+| 7     | unpack_sequence         |
+| 8     | tornado_http            |
+| 9     | sqlite_synth            |
+| 10    | Nbody                   |
+| 11    | Btree                   |
+| 12    | deepblue                |
+| 13    | go                      |
+
+Reference: [pyperformance Benchmark Documentation](https://pyperformance.readthedocs.io/benchmarks.html).
+
+## 3. Understand Each Benchmark
+
+For each of your two chosen benchmarks, before touching `perf`:
+
+- Find its source under pyperformance's install path, e.g.:
+  ```
+  find / -iname "bm_<benchmark_name>*" 2>/dev/null
+  ```
+  (for example `bm_json_dumps/run_benchmark.py` for `json_dumps`).
+- Read the benchmark script and note:
+  - What operation it exercises (serialization, encryption, tree traversal,
+    numeric simulation, etc.).
+  - Which libraries and data structures it uses (stdlib, third-party, or
+    custom).
+  - The rough algorithmic shape of the hot path (loops, recursion, I/O).
+- If it depends on a third-party library, skim that library's source for the
+  specific code path the benchmark exercises — you'll need this understanding
+  to justify your optimization and hardware proposal later.
+
+## 4. Profile with perf
 
 ### Step 1 — Record with `perf`
 
@@ -18,10 +97,9 @@ acceleration for benchmarks from the `pyperformance` suite.
 perf record -F 999 -g -e cpu-clock -- python3-dbg -m pyperformance run --bench <benchmark_name>
 ```
 
-Replace `<benchmark_name>` with one of the approved benchmark names (see table
-below).
+Replace `<benchmark_name>` with one of the approved benchmark names.
 
-**Note on `-e cpu-clock`:** the plain command from the original guide
+**Note on `-e cpu-clock`:** the plain command from the original course guide
 (`perf record -F 999 -g -- python3-dbg -m pyperformance run --bench <name>`,
 i.e. the default hardware `cycles` event) runs without error inside this VM
 but silently records **zero samples** — `perf report` then fails with
@@ -31,7 +109,7 @@ interrupt) to trigger each sample, and this QEMU/KVM guest's virtual PMU does
 not reliably deliver that interrupt (plain counter reads via `perf stat -e
 cycles` still work fine — only interrupt-driven sampling is affected).
 Passing `-e cpu-clock` switches to a software, timer-based event that doesn't
-depend on a hardware PMI, which reliably produces samples in this VM.
+depend on a hardware PMI, and reliably produces samples in this VM.
 
 Example, for `json_dumps`:
 
@@ -57,23 +135,135 @@ function calls and stack traces (e.g. `_PyEval_EvalFrameDefault`,
 `pymalloc_pool_extend`) used during the benchmark, which helps identify
 performance bottlenecks within Python itself.
 
-## Approved Benchmarks
+Run this for **both** chosen benchmarks and save each report as
+`report_<name_of_benchmark>.txt` (final naming — see
+[Section 10](#10-repository-structure--required-deliverables)).
 
-| Index | Name of Benchmark      |
-|-------|-------------------------|
-| 1     | Raytrace                |
-| 2     | Deepcopy                |
-| 3     | Mdp                     |
-| 4     | Pathlib                 |
-| 5     | Pickle and pickle_dict  |
-| 6     | Pyflate                 |
-| 7     | unpack_sequence         |
-| 8     | tornado_http            |
-| 9     | sqlite_synth            |
-| 10    | Nbody                   |
-| 11    | Btree                   |
-| 12    | deepblue                |
-| 13    | go                      |
+## 5. Generate a Flame Graph
 
-Two benchmarks must be selected from this list for the project.
+Flame graphs turn the same `perf.data` into a visual, interactive SVG.
+Use Brendan Gregg's [FlameGraph](https://github.com/brendangregg/FlameGraph)
+scripts:
+
+```
+git clone https://github.com/brendangregg/FlameGraph.git
+perf script -i perf.data > out.perf
+./FlameGraph/stackcollapse-perf.pl out.perf > out.folded
+./FlameGraph/flamegraph.pl out.folded > flamegraph_<benchmark_name>.svg
+```
+
+Copy the resulting `.svg` out of the VM (e.g. `scp`) to view it in a browser.
+Wider frames = more samples = hotter code paths — that's what you're
+hunting for in the next step.
+
+## 6. Detect Bottlenecks
+
+Using `perf_report.txt` and the flame graph together:
+
+- Identify the functions with the highest `Self` percentage — these are
+  where the CPU is actually spending time (as opposed to `Children`, which
+  includes time spent in callees).
+- Look for wide, flat plateaus in the flame graph — repeated hot calls
+  (e.g. allocator churn, a specific serialization routine, a heavy inner
+  loop) are prime optimization targets.
+- Distinguish bottlenecks that are:
+  - **Algorithmic** (wrong data structure / big-O behavior),
+  - **Library-related** (a slower pure-Python path vs. a faster C-accelerated
+    one), or
+  - **Memory/allocator-related** (excessive small allocations, GC pressure).
+- Write down 1-2 concrete hotspots per benchmark — these become the targets
+  for Section 7.
+
+## 7. Optimize the Benchmark
+
+For each identified bottleneck, propose and implement a fix. Typical options:
+
+- Swap in a more efficient library or built-in (e.g. a C-accelerated
+  implementation instead of a pure-Python one).
+- Replace an algorithm or data structure with a more efficient one.
+- Reduce redundant work (caching, avoiding unnecessary copies, batching).
+
+Keep the original benchmark code intact somewhere (e.g. a `before/` copy or a
+git branch/tag) so you can run both versions for the comparison in the next
+step.
+
+## 8. Re-measure and Compare
+
+Re-run the same `perf record` / `perf report` commands from
+[Section 4](#4-profile-with-perf) against your optimized code, and record the
+`pyperformance` timing output (`Mean +- std dev`) from both the original and
+optimized runs.
+
+- Compute percentage improvement:
+  `(original_mean - optimized_mean) / original_mean * 100`.
+- **Target: at least 2 of your selected benchmarks show ≥7% improvement.**
+  This is treated as sufficient by the assignment.
+- Present a clear before/after table (timings + % improvement) for each
+  benchmark in its `report_<name_of_benchmark>.txt`.
+
+## 9. Propose a Hardware Accelerator
+
+For one or two key components identified as bottlenecks, design a hardware
+accelerator. Example directions from the assignment: accelerating dictionary
+operations, speeding up decompression, or an ISA extension for a
+non-workload-specific operation (e.g. multiply-accumulate).
+
+Your proposal must include:
+
+- **Hardware description** — implemented in Verilog, SystemVerilog, or
+  PyXHDL (other HDLs/frameworks need prior instructor approval). Doesn't need
+  to be tapeout-ready, but must be a complete, logically consistent design.
+- **Inputs and outputs** — data widths, interfaces, expected operating
+  frequency.
+- **Hardware architecture** — datapath and control logic.
+- **Hardware/software interface** — how software talks to it: APIs, drivers,
+  memory-mapped registers, DMA, or another communication protocol, plus any
+  required software-side changes.
+- **Acceleration justification** — why this component is a good candidate,
+  an estimated performance improvement, and your assumptions.
+- **Block diagram** — the accelerator, its interfaces, and its place in the
+  overall system.
+- **Performance/area/power trade-offs.**
+
+You are not expected to synthesize, fabricate, or physically test the
+hardware — but the design must be complete enough to fully define its
+functionality, interfaces, frequency, and internal logic.
+
+## 10. Repository Structure & Required Deliverables
+
+For **each** of your two chosen benchmarks, this repo must contain:
+
+- `report_<name_of_benchmark>.txt` — overview, initial analysis (including
+  flame graphs / profiling data), optimizations made, before/after
+  performance comparison, hardware acceleration proposal, and a conclusion.
+- `script_<name_of_benchmark>.sh` — environment setup, benchmark execution
+  (perf + pyperformance), flame graph generation, and the post-optimization
+  run with its comparison.
+
+Plus, once per repo:
+
+- Any additional supporting files (Python scripts, configs, HW source files,
+  performance logs) — optional but encouraged.
+- `prompt.txt` (or `prompt.docx`) — see [Section 11](#11-document-your-ai-tool-usage).
+- This `README.md`, explaining the repo layout and how to reproduce results.
+
+Use clear, incremental commit messages that show your actual development
+process — well-organized history and structure earns bonus points (+5).
+
+## 11. Document Your AI Tool Usage
+
+AI tools (ChatGPT, GitHub Copilot, Claude, etc.) are allowed as an aid, not a
+substitute for your own analysis. Keep a running `prompt.txt` (or
+`prompt.docx`) logging the prompts/instructions you gave any AI tool while
+working on this project.
+
+## 12. Prepare the Presentation
+
+- 20–25 minutes, at a time scheduled by course staff.
+- Structure it as the natural flow of the work: analysis → profiling →
+  bottlenecks → optimization → results → hardware proposal.
+- Expect 5–10 minutes of questions — be ready to explain your choices.
+- Have working code available to demo (no need to put all of it on slides).
+- Aim the explanation at a fellow ECE student who didn't do the project —
+  focus on teaching and demonstrating understanding, not just showing output.
 
