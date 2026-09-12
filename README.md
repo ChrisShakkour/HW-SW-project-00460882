@@ -182,6 +182,21 @@ Using `perf_report_<name>.txt` and the flame graph together:
 - Write down 1-2 concrete hotspots per benchmark — these become the targets
   for Section 7.
 
+**Tip:** `perf_report_<name>.txt` is generated with call-graphs, which
+nests each function under its *callers* and mixes `Self` into a
+`Children`-sorted tree — useful for context, but hard to skim for pure
+`Self`-time ranking. Re-run against the same `perf.data` (no need to
+re-record) with:
+
+```
+perf report --stdio --no-children -g none -i perf.data
+```
+
+to get a flat table sorted purely by `Self` time.
+
+Completed for both chosen benchmarks:
+[pyflate/BOTTLENECKS.md](pyflate/BOTTLENECKS.md), [nbody/BOTTLENECKS.md](nbody/BOTTLENECKS.md).
+
 ## 7. Optimize the Benchmark
 
 For each identified bottleneck, propose and implement a fix. Typical options:
