@@ -210,6 +210,19 @@ Keep the original benchmark code intact somewhere (e.g. a `before/` copy or a
 git branch/tag) so you can run both versions for the comparison in the next
 step.
 
+**Measure, don't assume.** A hotspot in the profile doesn't guarantee its
+"obvious" fix nets a real win — the replacement can carry its own
+overhead (an extra function call, an extra allocation) that cancels out
+or exceeds the savings. Always re-measure with a calibrated run rather
+than trusting the theory; a rigorously-measured *negative* result is
+still a valid, reportable finding (see `nbody`'s case below).
+
+Completed for both chosen benchmarks:
+[pyflate/OPTIMIZATIONS.md](pyflate/OPTIMIZATIONS.md) (a clear win — swap
+in stdlib `bz2`), [nbody/OPTIMIZATIONS.md](nbody/OPTIMIZATIONS.md) (three
+measured attempts, none beat the baseline — see its Conclusion for why,
+and how that motivates Section 9's hardware proposal instead).
+
 ## 8. Re-measure and Compare
 
 Re-run the same `perf record` / `perf report` commands from

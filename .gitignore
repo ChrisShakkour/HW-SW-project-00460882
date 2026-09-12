@@ -4,3 +4,4 @@ out.perf
 out.folded
 tools/
 perf_swevents.data
+__pycache__/
