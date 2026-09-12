@@ -1,0 +1,18 @@
+
+ Performance counter stats for 'python3-dbg -m pyperformance run --bench nbody':
+
+      121734504714      cycles                                                        (75.01%)
+      283023850377      instructions              #    2.32  insn per cycle           (87.51%)
+         324002864      cache-references                                              (87.51%)
+          10711791      cache-misses              #    3.306 % of all cache refs      (87.57%)
+       56422634358      branch-instructions                                           (87.54%)
+         308536792      branch-misses             #    0.55% of all branches          (87.58%)
+        3831369401      bus-cycles                                                    (49.98%)
+      122238008781      ref-cycles                                                    (62.54%)
+
+      53.268539531 seconds time elapsed
+
+      52.453473000 seconds user
+       0.758766000 seconds sys
+
+
