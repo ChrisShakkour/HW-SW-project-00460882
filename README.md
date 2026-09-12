@@ -18,8 +18,7 @@ go from a blank environment to a finished submission.
 8. [Re-measure and compare (target: ≥7% on at least 2 benchmarks)](#8-re-measure-and-compare)
 9. [Propose a hardware accelerator](#9-propose-a-hardware-accelerator)
 10. [Repository structure & required deliverables](#10-repository-structure--required-deliverables)
-11. [Document your AI tool usage](#11-document-your-ai-tool-usage)
-12. [Prepare the presentation](#12-prepare-the-presentation)
+11. [Prepare the presentation](#11-prepare-the-presentation)
 
 ---
 
@@ -120,24 +119,30 @@ perf record -F 999 -g -e cpu-clock -- python3-dbg -m pyperformance run --bench j
 ### Step 2 — Export the report to text
 
 ```
-perf report --stdio > perf_report.txt
+perf report --stdio > perf_report_<name>.txt
 ```
 
 Full example for `json_dumps`:
 
 ```
 perf record -F 999 -g -e cpu-clock -- python3-dbg -m pyperformance run --bench json_dumps
-perf report --stdio > perf_report.txt
+perf report --stdio > perf_report_json_dumps.txt
 ```
 
-Thanks to the Python debug symbols, `perf_report.txt` reveals internal Python
+Thanks to the Python debug symbols, the report reveals internal Python
 function calls and stack traces (e.g. `_PyEval_EvalFrameDefault`,
 `pymalloc_pool_extend`) used during the benchmark, which helps identify
 performance bottlenecks within Python itself.
 
-Run this for **both** chosen benchmarks and save each report as
-`report_<name_of_benchmark>.txt` (final naming — see
-[Section 10](#10-repository-structure--required-deliverables)).
+**Naming note:** raw perf output (call-graph report, `perf stat` counters,
+software-event sampling report) is saved per-benchmark as
+`perf_report_<name>.txt`, `perf_stat_<name>.txt`, and
+`perf_report_<name>_swevents.txt` — these are reference/appendix material.
+The assignment's required `report_<name_of_benchmark>.txt` is a different,
+higher-level file: the full structured write-up (overview, analysis,
+optimizations, comparison, HW proposal, conclusion) assembled in
+[Section 10](#10-repository-structure--required-deliverables), which
+references this raw data rather than being it.
 
 ## 5. Generate a Flame Graph
 
@@ -158,7 +163,7 @@ hunting for in the next step.
 
 ## 6. Detect Bottlenecks
 
-Using `perf_report.txt` and the flame graph together:
+Using `perf_report_<name>.txt` and the flame graph together:
 
 - Identify the functions with the highest `Self` percentage — these are
   where the CPU is actually spending time (as opposed to `Children`, which
@@ -236,28 +241,25 @@ For **each** of your two chosen benchmarks, this repo must contain:
 - `report_<name_of_benchmark>.txt` — overview, initial analysis (including
   flame graphs / profiling data), optimizations made, before/after
   performance comparison, hardware acceleration proposal, and a conclusion.
+  This is the structured write-up, distinct from the raw perf data below.
 - `script_<name_of_benchmark>.sh` — environment setup, benchmark execution
   (perf + pyperformance), flame graph generation, and the post-optimization
   run with its comparison.
+- Raw perf data backing the report above: `perf.data`, `perf_report_<name>.txt`
+  (call-graph text report), `flamegraph_<name>.svg`, `perf_stat_<name>.txt`
+  (hardware counters), and `perf_report_<name>_swevents.txt` (software-event
+  sampling).
 
 Plus, once per repo:
 
 - Any additional supporting files (Python scripts, configs, HW source files,
   performance logs) — optional but encouraged.
-- `prompt.txt` (or `prompt.docx`) — see [Section 11](#11-document-your-ai-tool-usage).
 - This `README.md`, explaining the repo layout and how to reproduce results.
 
 Use clear, incremental commit messages that show your actual development
 process — well-organized history and structure earns bonus points (+5).
 
-## 11. Document Your AI Tool Usage
-
-AI tools (ChatGPT, GitHub Copilot, Claude, etc.) are allowed as an aid, not a
-substitute for your own analysis. Keep a running `prompt.txt` (or
-`prompt.docx`) logging the prompts/instructions you gave any AI tool while
-working on this project.
-
-## 12. Prepare the Presentation
+## 11. Prepare the Presentation
 
 - 20–25 minutes, at a time scheduled by course staff.
 - Structure it as the natural flow of the work: analysis → profiling →

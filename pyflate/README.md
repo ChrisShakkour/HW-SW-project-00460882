@@ -8,18 +8,18 @@ Baseline result: `pyflate: Mean +- std dev: 3.17 sec +- 0.02 sec`
 ## Files
 
 - `perf.data` — raw perf sample data from the call-graph (`cpu-clock`) run.
-- `report_pyflate.txt` — call-graph text report generated from `perf.data`.
+- `perf_report_pyflate.txt` — call-graph text report generated from `perf.data`.
 - `flamegraph_pyflate.svg` — interactive flame graph generated from the same
   run (open in a browser).
 - `perf_stat_pyflate.txt` — aggregate hardware performance-counter stats
   (cycles, instructions, cache, branches) for the whole benchmark run.
-- `report_pyflate_swevents.txt` — call-graph report sampled on software
+- `perf_report_pyflate_swevents.txt` — call-graph report sampled on software
   events (page faults, minor faults, context switches, CPU migrations),
   generated from `perf_swevents.data` (not committed — see below).
 - `venv/` — pyperformance's per-benchmark virtual environment (git-ignored).
 
 Note: `perf_swevents.data` itself is **not** committed (it's ~134 MB, over
-GitHub's 100 MB per-file limit) — only the derived `report_pyflate_swevents.txt`
+GitHub's 100 MB per-file limit) — only the derived `perf_report_pyflate_swevents.txt`
 is kept. Regenerate the raw data locally with the command below if needed.
 
 ## Commands Used
@@ -30,7 +30,7 @@ Run from inside this directory (`HW-SW-project-00460882/pyflate`).
 
 ```
 perf record -F 999 -g -e cpu-clock -- python3-dbg -m pyperformance run --bench pyflate
-perf report --stdio > report_pyflate.txt
+perf report --stdio > perf_report_pyflate.txt
 ```
 
 `-e cpu-clock` is required instead of the default hardware `cycles` event —
@@ -76,7 +76,7 @@ happen, since these aren't tied to hardware PMI support:
 ```
 perf record -c 1 -g -e page-faults,minor-faults,context-switches,cpu-migrations \
   -o perf_swevents.data -- python3-dbg -m pyperformance run --bench pyflate
-perf report --stdio -i perf_swevents.data > report_pyflate_swevents.txt
+perf report --stdio -i perf_swevents.data > perf_report_pyflate_swevents.txt
 ```
 
 `-c 1` samples every occurrence (these events are rare/discrete, unlike
@@ -90,7 +90,7 @@ cd HW-SW-project-00460882/pyflate
 
 # call graph + flame graph
 perf record -F 999 -g -e cpu-clock -- python3-dbg -m pyperformance run --bench pyflate
-perf report --stdio > report_pyflate.txt
+perf report --stdio > perf_report_pyflate.txt
 perf script -i perf.data > out.perf
 ../tools/FlameGraph/stackcollapse-perf.pl out.perf > out.folded
 ../tools/FlameGraph/flamegraph.pl out.folded > flamegraph_pyflate.svg
@@ -102,6 +102,6 @@ perf stat -e cycles,instructions,cache-references,cache-misses,branch-instructio
 # software-event sampling
 perf record -c 1 -g -e page-faults,minor-faults,context-switches,cpu-migrations \
   -o perf_swevents.data -- python3-dbg -m pyperformance run --bench pyflate
-perf report --stdio -i perf_swevents.data > report_pyflate_swevents.txt
+perf report --stdio -i perf_swevents.data > perf_report_pyflate_swevents.txt
 ```
 
