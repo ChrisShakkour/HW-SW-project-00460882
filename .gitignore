@@ -1,2 +1,5 @@
 venv/
 *.err
+out.perf
+out.folded
+tools/
