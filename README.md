@@ -88,6 +88,9 @@ For each of your two chosen benchmarks, before touching `perf`:
   specific code path the benchmark exercises — you'll need this understanding
   to justify your optimization and hardware proposal later.
 
+Completed for both chosen benchmarks:
+[pyflate/ANALYSIS.md](pyflate/ANALYSIS.md), [nbody/ANALYSIS.md](nbody/ANALYSIS.md).
+
 ## 4. Profile with perf
 
 ### Step 1 — Record with `perf`
