@@ -60,7 +60,7 @@ energy before/after to (indirectly) validate the integration.
   200,000 individual scalar Python operations) — though with only 5
   bodies/10 pairs, numpy's per-call dispatch overhead may cut into the
   win; worth measuring both.
-- This matches the profiling data in [perf_stat_nbody.txt](perf_stat_nbody.txt)
+- This matches the profiling data in [original/perf_stat_original.txt](original/perf_stat_original.txt)
   (2.32 insn/cycle, low 3.3% cache-miss rate — the code is compute-bound on
   interpreter overhead, not memory-bound) and the flame graph's dominant
   `_PyEval_EvalFrameDefault`/`binary_op1` frames.

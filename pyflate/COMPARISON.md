@@ -1,8 +1,10 @@
 # pyflate — Before/After Comparison (Section 8)
 
-Baseline artifacts: `perf.data`, `perf_report_pyflate.txt`,
-`flamegraph_pyflate.svg`, `perf_stat_pyflate.txt` (repo root of this
-directory — **untouched** by this comparison).
+Baseline artifacts: [`original/perf.data`](original/perf.data),
+[`original/perf_report_original.txt`](original/perf_report_original.txt),
+[`original/flamegraph_original.svg`](original/flamegraph_original.svg),
+[`original/perf_stat_original.txt`](original/perf_stat_original.txt)
+(**untouched** by this comparison).
 
 Optimized artifacts (same pipeline, run against
 [`optimized/run_benchmark.py`](optimized/run_benchmark.py)):

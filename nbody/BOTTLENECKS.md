@@ -1,10 +1,10 @@
 # nbody — Bottleneck Analysis (Section 6)
 
 Based on a flat, self%-ranked view of the existing profiling data (not the
-children-nested tree in [perf_report_nbody.txt](perf_report_nbody.txt)):
+children-nested tree in [original/perf_report_original.txt](original/perf_report_original.txt)):
 
 ```
-perf report --stdio --no-children -g none -i perf.data
+perf report --stdio --no-children -g none -i original/perf.data
 ```
 
 ## Top Self% Hotspots
@@ -62,13 +62,13 @@ eliminate entirely.
 
 ## Corroborating Data
 
-- [perf_stat_nbody.txt](perf_stat_nbody.txt): **2.32 insn/cycle** and a low
+- [original/perf_stat_original.txt](original/perf_stat_original.txt): **2.32 insn/cycle** and a low
   **3.3% cache-miss rate** — much better cache behavior than pyflate
   (7.0%), because nbody's working set (10 pairs, 5 bodies) is tiny and
   stays cache-resident. This confirms the bottleneck here is **not**
   memory locality — it's the sheer number of interpreter-level operations
   and object allocations per unit of actual math performed.
-- [perf_report_nbody_swevents.txt](perf_report_nbody_swevents.txt): ~149K
+- [original/perf_report_original_swevents.txt](original/perf_report_original_swevents.txt): ~86K
   page-fault/minor-fault samples over the run, consistent with the
   constant churn of small float/list objects (lower total than pyflate,
   proportional to nbody's much shorter runtime).

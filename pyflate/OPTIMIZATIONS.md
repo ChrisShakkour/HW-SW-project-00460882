@@ -31,7 +31,7 @@ A quick single-sample run (`python3-dbg run_benchmark.py -p1 -n1 -l1`):
 
 | Version   | Time      |
 |-----------|-----------|
-| Original  | 3.17 sec (calibrated mean, see [perf_stat_pyflate.txt](perf_stat_pyflate.txt)) |
+| Original  | 3.17 sec (calibrated mean, see [original/perf_stat_original.txt](original/perf_stat_original.txt)) |
 | Optimized | 13.9 ms   |
 
 A rough **~228x** speedup. The full calibrated (multi-sample) before/after

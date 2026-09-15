@@ -73,7 +73,7 @@ reading the code (both are strong Section 7 candidates independent of the
 - The final RLE-decode loop also allocates a new single-byte `bytes`
   object per output byte (`nearly_there[i:i+1]`), which lines up with the
   very high page-fault/minor-fault counts seen in
-  [perf_report_pyflate_swevents.txt](perf_report_pyflate_swevents.txt)
-  (~930K samples) and the elevated 7.0% cache-miss rate in
-  [perf_stat_pyflate.txt](perf_stat_pyflate.txt) compared to nbody's 3.3%.
+  [original/perf_report_original_swevents.txt](original/perf_report_original_swevents.txt)
+  (~863K samples) and the elevated 7.0% cache-miss rate in
+  [original/perf_stat_original.txt](original/perf_stat_original.txt) compared to nbody's 3.3%.
 

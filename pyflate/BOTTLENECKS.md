@@ -1,10 +1,10 @@
 # pyflate — Bottleneck Analysis (Section 6)
 
 Based on a flat, self%-ranked view of the existing profiling data (not the
-children-nested tree in [perf_report_pyflate.txt](perf_report_pyflate.txt)):
+children-nested tree in [original/perf_report_original.txt](original/perf_report_original.txt)):
 
 ```
-perf report --stdio --no-children -g none -i perf.data
+perf report --stdio --no-children -g none -i original/perf.data
 ```
 
 ## Top Self% Hotspots
@@ -68,13 +68,13 @@ short-lived list/bytes objects instead of mutating in place.
 
 ## Corroborating Data
 
-- [perf_stat_pyflate.txt](perf_stat_pyflate.txt): **7.0% cache-miss rate**
+- [original/perf_stat_original.txt](original/perf_stat_original.txt): **7.0% cache-miss rate**
   and **2.17 insn/cycle** — the highest cache-miss rate of the two chosen
   benchmarks, consistent with a large number of small, individually
   heap-allocated objects (`HuffmanLength` instances, list/bytes fragments)
   scattered across memory rather than a tight, cache-resident working set.
-- [perf_report_pyflate_swevents.txt](perf_report_pyflate_swevents.txt):
-  ~930K page-fault/minor-fault samples over the run — consistent with (if
+- [original/perf_report_original_swevents.txt](original/perf_report_original_swevents.txt):
+  ~863K page-fault/minor-fault samples over the run — consistent with (if
   not conclusive proof of) heavy allocation churn from the two bottlenecks
   above.
 
