@@ -1,0 +1,18 @@
+
+ Performance counter stats for 'python3-dbg run_benchmark.py':
+
+      111483883351      cycles                                                        (75.10%)
+      269178197556      instructions              #    2.41  insn per cycle           (87.53%)
+         175498261      cache-references                                              (87.50%)
+           5078835      cache-misses              #    2.894 % of all cache refs      (87.49%)
+       53401503537      branch-instructions                                           (87.50%)
+         248448320      branch-misses             #    0.47% of all branches          (87.49%)
+        3501553238      bus-cycles                                                    (50.17%)
+      111822551681      ref-cycles                                                    (62.66%)
+
+      48.536821979 seconds time elapsed
+
+      47.963182000 seconds user
+       0.501291000 seconds sys
+
+
