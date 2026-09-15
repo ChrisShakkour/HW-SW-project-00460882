@@ -237,6 +237,19 @@ optimized runs.
 - Present a clear before/after table (timings + % improvement) for each
   benchmark in its `report_<name_of_benchmark>.txt`.
 
+**Don't overwrite the baseline artifacts** when profiling the optimized
+code — write the optimized run's `perf.data`/report/flame graph/stat
+output into the `optimized/` subdirectory (or otherwise distinctly named),
+so the original "before" profiling data stays intact for the comparison.
+
+Completed: [pyflate/COMPARISON.md](pyflate/COMPARISON.md) — full
+before/after `perf` comparison (timing, hardware counters, self%-ranked
+hotspots) confirming both Section 6 bottlenecks are gone from the
+optimized profile. `nbody`'s comparison doesn't need a separate write-up:
+since none of its three optimization attempts beat the baseline (see
+[nbody/OPTIMIZATIONS.md](nbody/OPTIMIZATIONS.md)), the baseline profiling
+data already in this repo *is* the final comparison point.
+
 ## 9. Propose a Hardware Accelerator
 
 For one or two key components identified as bottlenecks, design a hardware
