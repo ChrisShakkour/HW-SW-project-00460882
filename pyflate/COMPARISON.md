@@ -82,6 +82,58 @@ of CPython debug-build bookkeeping (`validate_list`,
 actual work and so becomes proportionally more visible now that there's
 so little total work left.
 
+## Flame Graphs
+
+Same underlying `perf.data` as above, rendered as flame graphs via the
+shared [FlameGraph](https://github.com/brendangregg/FlameGraph) scripts
+(see the per-variant `README.md`/`OPTIMIZATIONS.md` for the exact
+`perf script | stackcollapse-perf.pl | flamegraph.pl` pipeline):
+[`original/flamegraph_original.svg`](original/flamegraph_original.svg) vs.
+[`optimized/flamegraph_pyflate_optimized.svg`](optimized/flamegraph_pyflate_optimized.svg)
+(open either in a browser — they're interactive/zoomable).
+
+The widest frames (by self%, extracted directly from each SVG's `<title>`
+elements) match the `perf report` table above exactly, since both are
+generated from the same sample data:
+
+**Before** — a wide, deep forest of narrow towers under the interpreter loop:
+```
+23.54%  _PyEval_EvalFrameDefault      (interpreter loop)
+ 4.14%  _PyMem_DebugCheckAddress      (allocator bookkeeping)
+ 2.98%  __memset_avx2_unaligned_erms  (memory clearing)
+ 2.86%  read_size_t                   (allocator)
+ 2.47%  list_dealloc                  (MTF list churn)
+ 2.30%  call_function                 (Huffman scan call overhead)
+ 2.09%  list_ass_slice                (MTF list churn)
+ 1.53%  lookdict_unicode_nodummy      (Huffman-scan attribute lookups)
+```
+
+**After** — two enormous flat plateaus for the C decompressor, everything
+else reduced to slivers:
+```
+37.92%  BZ2_decompress       (libbz2.so decompression engine)
+20.88%  BZ2_bzDecompress     (libbz2.so stream/buffer management)
+ 3.14%  _PyEval_EvalFrameDefault  (residual wrapper only)
+```
+
+Visually, this is the same conclusion as the table above, just shown as
+stack width instead of ranked rows: the "before" graph is many separately
+colored, narrow plateaus (`list_dealloc`, `list_ass_slice`, `call_function`,
+`lookdict_unicode_nodummy`) scattered across the width — each one a
+distinct symptom of the two bottlenecks in [BOTTLENECKS.md](BOTTLENECKS.md).
+The "after" graph collapses almost entirely into two single, contiguous
+`BZ2_decompress`/`BZ2_bzDecompress` plateaus (≈58.7% combined) — one C
+function doing sustained work instead of thousands of short Python call
+towers — with the `_PyEval_EvalFrameDefault` tower still present but now
+tiny (3.14%, just the thin Python wrapper around the `bz2.decompress()`
+call).
+
+One caveat: raw sample *counts* aren't comparable between the two graphs
+(≈273M samples before vs. ≈14.4M after) since `perf record -F 999` samples
+at a fixed wall-clock frequency and the optimized run is ~244x shorter —
+it's the **percentage composition/shape** of each graph that's the
+meaningful comparison, not absolute sample counts.
+
 ## Conclusion
 
 The optimization directly targeted and eliminated both bottlenecks
