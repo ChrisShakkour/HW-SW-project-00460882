@@ -1,0 +1,121 @@
+AI Tool Prompts — HW/SW Project
+================================
+
+This file documents prompts used when interacting with AI tools (Claude
+Code) during this project, per the assignment's Section 8/10 requirement.
+
+IMPORTANT NOTE ON SCOPE: this log covers one Claude Code chat session,
+run locally against a checked-out copy of this repository (branch
+`razans`), used to review progress, plan remaining work, extend the
+`nbody` optimization attempts, and manage git operations. Earlier project
+work (the initial ANALYSIS.md/BOTTLENECKS.md/OPTIMIZATIONS.md/COMPARISON.md
+write-ups, the original perf profiling runs, and the report_*.docx /
+script_*.sh generation) was done in separate session(s) run directly
+against the VM described in VM_SETUP.md, whose prompt history is not
+captured in this log — if those sessions' prompts are needed for full
+compliance, they should be appended here by whoever ran them.
+
+Session: local repo review, nbody optimization, git/branch management
+------------------------------------------------------------------------
+
+1. "get checkout to new branch"
+   -> Created and switched to a new branch (`razans`) for this session's
+      work.
+
+2. "according to this project hw help me understand what i have done
+   until now in the code in the nbody ?" (with the assignment PDF
+   attached)
+   -> Reviewed nbody/README.md, ANALYSIS.md, BOTTLENECKS.md,
+      OPTIMIZATIONS.md against the assignment and summarized progress.
+
+3. "simplify everything to me i dont understand"
+   -> Re-explained the same summary in plain, non-technical language.
+
+4. "if the 3 ways didnt work , then shouldnt we try another way to make
+   the code faster ? isnt that what the assinment wants?"
+   -> Read nbody/original/run_benchmark.py directly, identified that the
+      first three optimization attempts hadn't targeted the interpreter
+      loop/tuple-destructuring overhead, and proposed a 4th approach
+      (manual loop unrolling) as well as an alternative (Cython). User
+      selected manual loop unrolling.
+
+5. (follow-up, no new user prompt) Implemented
+   nbody/optimized_unroll_experiment/run_benchmark.py: manually unrolled
+   the 10-pair force loop and the 5-body position-update loop, removing
+   the per-pair tuple-destructuring overhead. Verified correctness
+   (bit-identical energy output vs. the original) and got a rough local
+   timing sanity check (~9% faster) before handing off to the VM for an
+   official perf/pyperf measurement.
+
+6. "git add and commit"
+   -> Staged and committed the new nbody/optimized_unroll_experiment/
+      directory.
+
+7. "okay now whats next??"
+   -> Surveyed repo state (both benchmarks, deliverable file names,
+      hardware-proposal presence) and produced a prioritized punch list:
+      confirm the unroll result on the VM, write the hardware
+      accelerator proposal (untouched at the time), and assemble the
+      assignment's literally-named report_*/script_* files.
+
+8. "git pull from origin"
+   -> Fetched and merged origin/main (a teammate's update to
+      pyflate/COMPARISON.md) into the local `razans` branch.
+
+9. "git push"
+   -> Attempted to push `razans`; failed due to no GitHub credentials
+      configured on this machine.
+
+10. "option a"
+    -> Set up SSH authentication for GitHub (generated an ed25519
+       keypair, had the user add the public key to GitHub, added
+       GitHub's host key to known_hosts, switched the repo remote from
+       HTTPS to SSH).
+
+11. "git push" (retry)
+    -> Pushed `razans` to origin successfully once SSH auth was working.
+
+12. "Git pull and move to master branch"
+    -> Clarified the repo's default branch is `main` (no `master`
+       exists), switched to it, and pulled — which brought in a
+       teammate's VM-run confirmation of the nbody unroll optimization
+       (nbody/COMPARISON.md, official perf artifacts) plus the
+       report_*.docx and script_*.sh deliverable files.
+
+13. "go over the assignment pdf and tell me if we did everything
+    according to it , and tell me if there any thing left to do to
+    complete it"
+    -> Audited the full repo against every numbered section of the
+       assignment PDF (benchmark analysis, pyperformance understanding,
+       flame graphs, bottleneck detection, optimizations, ≥7% target,
+       hardware proposal, required deliverable file names/formats,
+       AI-prompt log, presentation). Found: hardware proposal exists in
+       prose+diagram form for pyflate only, no actual HDL source code
+       anywhere, report files are .docx instead of the assignment's
+       literal .txt naming, and no prompt.txt/prompt.docx existed at
+       all.
+
+14. "about the nbody's hardware section , do i need to add it ? i
+    thought its not applicable , tell me what do you think"
+    -> Recommended adding a hardware proposal for nbody too (rather than
+       relying on "if applicable"), since nbody's own OPTIMIZATIONS.md
+       conclusion had already identified a concrete, well-motivated
+       hardware candidate (a fixed-function multiply-accumulate/FPU
+       pipeline for the pairwise force calculation) that was never
+       written up.
+
+15. "tell me step by step what should i do now to coplete the missing
+    things in this project?"
+    -> Produced an ordered plan: (1) this prompt log, (2) nbody hardware
+       write-up, (3) actual SystemVerilog source for both accelerators,
+       (4) .txt versions of the reports matching the assignment's exact
+       filenames, (5) check script_*.sh references, (6) commit/push,
+       (7) presentation prep (later).
+
+16. "Checkout razans" / "ues" (merge main into razans)
+    -> Branch housekeeping to bring `razans` up to date with `main`
+       before starting the work in step 15's plan.
+
+17. "start on the missing pieces"
+    -> Began executing the plan from step 15 (this file is the first
+       deliverable produced under it).
