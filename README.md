@@ -278,6 +278,16 @@ You are not expected to synthesize, fabricate, or physically test the
 hardware — but the design must be complete enough to fully define its
 functionality, interfaces, frequency, and internal logic.
 
+Completed for both chosen benchmarks: pyflate's Huffman Fast-Decode Unit
+(write-up in [pyflate/report_pyflate.txt](pyflate/report_pyflate.txt)'s
+Hardware Acceleration Proposal section, RTL in
+[pyflate/hardware/hfdu.sv](pyflate/hardware/hfdu.sv)) and nbody's Gravity
+Force Pipeline ([nbody/HARDWARE.md](nbody/HARDWARE.md), RTL in
+[nbody/hardware/gravity_force_pipeline.sv](nbody/hardware/gravity_force_pipeline.sv)).
+Both are SystemVerilog, syntax-checked with Icarus Verilog (`-g2012`, no
+errors or warnings) — not synthesized or simulated, per this section's
+scope above.
+
 ## 10. Repository Structure & Required Deliverables
 
 For **each** of your two chosen benchmarks, this repo must contain:
@@ -296,9 +306,18 @@ For **each** of your two chosen benchmarks, this repo must contain:
 
 Plus, once per repo:
 
+- `prompt.txt` — the prompts/instructions used when interacting with AI
+  tools during this project.
 - Any additional supporting files (Python scripts, configs, HW source files,
   performance logs) — optional but encouraged.
 - This `README.md`, explaining the repo layout and how to reproduce results.
+
+Completed: [prompt.txt](prompt.txt); `report_*`/`script_*` for both
+benchmarks ([pyflate/report_pyflate.txt](pyflate/report_pyflate.txt),
+[pyflate/script_pyflate.sh](pyflate/script_pyflate.sh),
+[nbody/report_nbody.txt](nbody/report_nbody.txt),
+[nbody/script_nbody.sh](nbody/script_nbody.sh)); raw perf data under each
+benchmark's `original/`/`optimized*/` subdirectories.
 
 Use clear, incremental commit messages that show your actual development
 process — well-organized history and structure earns bonus points (+5).

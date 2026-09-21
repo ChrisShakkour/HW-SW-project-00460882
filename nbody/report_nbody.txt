@@ -1,0 +1,301 @@
+nbody — Benchmark Report
+========================
+
+Overview
+--------
+nbody is a pyperformance benchmark: a gravitational N-body simulation
+of five bodies (the sun, Jupiter, Saturn, Uranus, and Neptune), written
+in pure Python, from the Computer Language Benchmarks Game.
+
+Each benchmark loop calls advance() 20,000 times, computing pairwise
+gravitational forces between all 10 body pairs and updating positions
+and velocities, with report_energy() called before and after to check
+that total system energy is conserved.
+
+Baseline result: 483 ms +/- 4 ms (pyperf mean +/- std dev).
+
+Initial Analysis
+-----------------
+Call-graph profiling showed _PyEval_EvalFrameDefault (the interpreter
+loop) at 29.40% self-time, the single largest hotspot. Two concrete
+bottlenecks stood out below it:
+
+1. Expensive pow() calls for a fixed exponent. __ieee754_pow_fma
+   (1.08% self) is called from advance()'s r2 ** -1.5 and
+   report_energy()'s r2 ** 0.5. CPython has no special case for a
+   constant float exponent, so ** always dispatches to the general
+   pow() path instead of a cheaper multiply-plus-sqrt. binary_op1
+   (3.37%), the largest non-eval-loop hotspot, is the generic
+   operator-dispatch layer every arithmetic op in the loop goes
+   through.
+
+2. Per-operation float boxing. Every scalar float operation allocates
+   a new boxed PyFloat object and frees the old one, since Python
+   floats are immutable heap objects. PyFloat_FromDouble (2.51%) plus
+   float_mul/float_add/float_sub (4.82% combined) plus float_dealloc
+   (2.01%) adds up to about 9.3% of total runtime spent purely
+   creating and destroying temporary float objects, on top of
+   list_ass_item, list_ass_subscript, and validate_list (4.17%
+   combined) from writing results back into the position and velocity
+   lists.
+
+Corroborating data: 2.32 instructions per cycle and a low 3.3%
+cache-miss rate (much better than pyflate's 7.0%) confirm the
+bottleneck here is not memory locality -- nbody's working set is tiny
+and stays cache-resident. The cost is the sheer number of
+interpreter-level operations and object allocations per unit of math
+performed, also reflected in about 86K page-fault and minor-fault
+samples in the software-event report.
+
+nbody/original/run_benchmark.py, lines 80-93 -- advance()'s inner pair
+loop: the pow() call for bottleneck 1 (line 85) and the float
+arithmetic plus list writes for bottleneck 2 (lines 82-93):
+
+    80        for (([x1, y1, z1], v1, m1),
+    81             ([x2, y2, z2], v2, m2)) in pairs:
+    82            dx = x1 - x2
+    83            dy = y1 - y2
+    84            dz = z1 - z2
+    85            mag = dt * ((dx * dx + dy * dy + dz * dz) ** (-1.5))
+    86            b1m = m1 * mag
+    87            b2m = m2 * mag
+    88            v1[0] -= dx * b2m
+    89            v1[1] -= dy * b2m
+    90            v1[2] -= dz * b2m
+    91            v2[0] += dx * b1m
+    92            v2[1] += dy * b1m
+    93            v2[2] += dz * b1m
+
+nbody/original/run_benchmark.py, lines 101-106 -- report_energy()'s
+matching pow() call:
+
+    101       for (((x1, y1, z1), v1, m1),
+    102            ((x2, y2, z2), v2, m2)) in pairs:
+    103           dx = x1 - x2
+    104           dy = y1 - y2
+    105           dz = z1 - z2
+    106           e -= (m1 * m2) / ((dx * dx + dy * dy + dz * dz) ** 0.5)
+
+Baseline flame graph: original/flamegraph_original.svg. Because nbody
+is pure Python end to end, the graph is dominated by deep, recursive
+interpreter-loop towers, with the float-boxing and pow() functions as
+thin towers underneath.
+
+Optimizations Made
+-------------------
+Four optimization attempts were implemented, each targeting a hotspot
+from the profile, and each measured with a full calibrated pyperf run
+against the 483 ms +/- 4 ms baseline.
+
+  Attempt                          Change                                                  Result                    Verdict
+  1. numpy vectorization           Replaced per-body Python lists with numpy arrays,       848 ms (75% slower)        Regression
+                                    vectorized the pairwise force computation
+  2. sqrt() instead of **          Replaced r2**-1.5 and r2**0.5 with a sqrt()-based       495 ms +/- 2 ms            Regression
+                                    formula                                                 (2.5% slower)
+  3. Flattened index iteration     Replaced nested-tuple destructuring with integer        579 ms +/- 2 ms            Regression
+                                    indices into flat tuples                                (20% slower)
+  4. Manual loop unrolling         Unpacked each body's position once per timestep,        439 ms +/- 2 ms            Only attempt to
+                                    wrote out all 10 pairwise force computations and 5      (9.1% faster)              beat baseline
+                                    position updates explicitly
+
+Root causes: numpy's per-call and scatter-add overhead dominates for a
+system this small (5 bodies, 10 pairs) -- vectorization needs many more
+elements to pay off. Calling sqrt() carries its own call overhead that
+costs about as much as the generic pow() dispatch it replaced. The
+flattened-index version backfired because it increased the number of
+subscript operations per pair compared to the original's single
+destructuring assignment. Loop unrolling won because it removed
+per-pair loop-control and tuple-destructuring overhead directly,
+without adding any new call or allocation.
+
+All four attempts were independently verified correct by comparing
+report_energy() output against the original.
+
+Before/After Comparison
+-------------------------
+Comparing the baseline against Attempt 4 (loop unrolling), the only one
+of the four that beat it (full detail: COMPARISON.md):
+
+  Version              Mean +/- std dev    Speedup
+  Original              483 ms +/- 4 ms     --
+  Optimized (unroll)    439 ms +/- 2 ms     ~1.10x (~9.1% faster)
+
+Hardware counters (perf stat):
+
+  Metric              Original            Optimized           Change
+  Instructions         260,503,357,966     243,990,614,558     6.8% fewer
+  Cycles                107,660,144,120     99,971,763,683      7.7% fewer
+  IPC (insn/cycle)      2.42                2.44                about the same
+  Cache-miss rate       2.83%               3.25%               slightly worse
+  Branch-miss rate      0.49%               0.49%               unchanged
+
+The cache-miss rate got slightly worse because unrolling the loop into
+10 explicit pairwise blocks makes the function body larger, adding a
+little instruction-cache pressure. What matters is that total
+instructions and cycles both dropped by 7-8% for the same amount of
+work, and wall-clock time confirms the net win.
+
+Unlike pyflate's optimization, no hotspot disappears here. Every
+function from the original profile is still present in the optimized
+one, generally at a higher self-time share, because unrolling shrank
+the total amount of work rather than removing any individual
+operation. __ieee754_pow_fma stays essentially unchanged (1.08% to
+1.64%), since unrolling never touched the ** power calls -- that was
+Attempt 2's target, not this one's.
+
+Optimized flame graph:
+optimized_unroll_experiment/flamegraph_optimized_unroll_experiment.svg.
+Structurally similar to the baseline -- both pure CPython with deep
+recursive interpreter stacks. Total samples drop from 45K to 42K,
+tracking the ~9% timing improvement; this is a difference of scale, not
+shape.
+
+Hardware Acceleration Proposal
+--------------------------------
+Targets advance()'s pairwise gravitational-force update
+(run_benchmark.py, lines 78-97) -- the loop responsible for essentially
+all of nbody's runtime. Full detail, including the block diagram and
+the reasoning behind every design choice below: HARDWARE.md. RTL
+source: hardware/gravity_force_pipeline.sv (SystemVerilog; syntax-
+checked with Icarus Verilog -g2012, no errors or warnings).
+
+Hardware description
+  The Gravity Force Pipeline (GFP): a SystemVerilog IP block that holds
+  all 5 bodies' state on-chip and runs the entire advance(dt, n) call
+  -- all n timesteps -- internally, without any per-timestep round trip
+  back to the CPU. Unlike pyflate's HFDU (which streams a large,
+  unbounded bitstream through a fixed-latency lookup -- the challenge
+  is data volume), nbody's entire working set is tiny (5 bodies x
+  (position + velocity + mass) = 35 doubles, ~280 bytes) and constant
+  for the whole call. The challenge here is call count, not data
+  volume: advance() re-enters the same 6-line pairwise computation
+  200,000+ times per benchmark loop, paying CPython's interpreter
+  dispatch and float-boxing cost every time. Moving the entire timestep
+  loop onto hardware -- not just one pairwise computation -- removes
+  that cost, since software now issues one start pulse per advance()
+  call instead of 200,000 individual arithmetic operations.
+
+Inputs and outputs
+  Control/status (memory-mapped register file, AXI-Lite style): start,
+  done, n_iterations (32-bit), dt (64-bit IEEE-754 double).
+  State load/readback port: one body-field per cycle -- state_body_idx
+  (3 bits, 0-4), state_field_sel (2 bits: position/velocity/mass),
+  state_axis_sel (2 bits: x/y/z), state_wr_data/state_rd_data (64-bit).
+  The whole 35-double state loads or reads back in ~35 cycles --
+  negligible next to n_iterations x 10-pair timesteps, so no DMA burst
+  interface is needed (unlike pyflate, where bitstream volume justifies
+  one).
+  Target frequency: 200-400 MHz for an FPGA prototype; a full-custom
+  ASIC of the same logic would clock significantly higher.
+
+Hardware architecture
+  Body register file: pos[5][3], vel[5][3], mass[5], all 64-bit
+  IEEE-754 doubles -- matches CPython's float representation exactly.
+  10 parallel Force Lanes (force_lane module): one per body pair, with
+  the pair-to-body-index mapping fixed at synthesis time -- the
+  hardware analogue of the software "manual unrolling" optimization
+  (Attempt 4), taken to its logical end: instead of unrolling a loop in
+  a still-interpreted language, it's fixed wiring between 10 lane
+  instances and the register file, so all 10 pairs evaluate
+  simultaneously, not sequentially. Each lane computes dx,dy,dz -> r^2
+  -> rsqrt^3 -> mag -> six velocity-delta terms, matching advance()'s
+  arithmetic exactly. The reciprocal-sqrt-cubed step is delegated to a
+  standard pipelined FP IP core (every FPGA/ASIC FP library ships one),
+  declared as a black box rather than re-derived.
+  Accumulate stage: each body appears in exactly 4 of the 10 pairs
+  (fixed, known at synthesis time), so this is a static 4-input
+  adder/subtractor tree per (body, axis) -- 15 trees total -- not a
+  dynamic scatter-add. This is the hardware analogue of the numpy
+  scatter-add approach that lost in software (Attempt 1) purely on
+  per-call dispatch overhead: in hardware there is no dispatch
+  overhead, so the same underlying idea wins here where it didn't in
+  Python.
+  Integrate stage: pos[b][axis] += dt * vel[b][axis] for all 5 bodies,
+  via one fp_mul + fp_add pair per (body, axis).
+  Sequencer FSM: IDLE -> LOAD -> FORCE -> ACCUMULATE -> INTEGRATE ->
+  (loop FORCE for n_iterations) -> DONE. The loop back to FORCE happens
+  entirely on-chip -- software is not involved until done asserts.
+
+Hardware/software interface
+  Software's role shrinks to almost nothing per timestep: it (1)
+  writes the initial state and dt/n into the register file, (2) pulses
+  start, (3) polls (or is interrupted by) done, (4) reads back the
+  final pos/vel. No DMA channel is needed -- register writes are the
+  whole interface, since the data volume (280 bytes, once) is trivial.
+  report_energy()'s calls stay in software unchanged, since they're
+  called far less often than advance()'s internal iterations and
+  weren't the profiled hotspot.
+
+Acceleration justification
+  advance()'s bottleneck isn't an inefficient algorithm -- the pairwise
+  loop is already the correct O(pairs) approach, and three of four
+  software attempts to speed it up within CPython made things worse
+  (see Optimizations Made above). The cost is structural: every scalar
+  float operation in CPython allocates a heap object, and every
+  iteration re-enters the bytecode interpreter. Neither cost exists in
+  hardware. Combined with running all 10 pairs in parallel and keeping
+  the entire n-timestep loop on-chip, this removes both bottlenecks at
+  their root rather than reducing their cost, which is what every
+  software attempt was limited to. Estimated improvement: software's
+  own best case (loop unrolling) removed ~9% by cutting redundant
+  interpreter re-entries without touching the underlying per-op cost.
+  Hardware removes the per-op cost itself and parallelizes across all
+  10 pairs, so the realistic ceiling is much higher -- the timestep
+  loop's critical path becomes the force_lane pipeline depth (~12
+  cycles) plus a small constant for accumulate/integrate, independent
+  of advance() call count. This is an architectural estimate, not a
+  measured one -- no FPGA/ASIC implementation was built or timed, per
+  the assignment's scope.
+
+Block diagram
+  hardware/block_diagram.png. Software (left) loads the 5-body state
+  and pulses start once per advance() call; the GFP (right) runs its
+  register file through the force-lane -> accumulate -> integrate
+  chain, looping internally for all n timesteps before asserting done
+  and letting software read back the final state. Compare against
+  pyflate's block diagram (../pyflate/hardware/block_diagram.png),
+  whose software side stays in the loop every block -- the structural
+  difference between the two designs mirrors the structural difference
+  between the two benchmarks' bottlenecks (streaming-data lookup vs.
+  call-count/interpreter overhead).
+
+Performance/area/power trade-offs
+  Performance: critical path is the force_lane pipeline depth
+  (dominated by the FP reciprocal-sqrt-cube unit), amortized across all
+  10 pairs evaluating in parallel and all n timesteps running without
+  CPU round trips.
+  Area: modest, dominated by the 10 force_lane instances, each
+  containing several 64-bit FP multiply/add/subtract units plus one FP
+  reciprocal-sqrt-cube unit. Ten parallel lanes cost 10x one lane's
+  FP-unit area -- a real trade-off against time-multiplexing fewer FP
+  units across the 10 pairs sequentially. Given the assignment's target
+  problem size (5 bodies), full parallelism is affordable; a larger
+  N-body problem would need to revisit this trade-off, since lane count
+  grows as O(bodies^2).
+  Power: dominated by the 10 parallel FP pipelines running every cycle
+  of every timestep -- higher instantaneous power than pyflate's HFDU,
+  but for a much shorter total active time per equivalent unit of work,
+  since there's no interpreter overhead inflating cycle count.
+  Trade-off made explicitly: running all 10 pairs in parallel (rather
+  than time-multiplexing fewer lanes) trades area for eliminating
+  sequencing overhead between pairs -- appropriate specifically because
+  10 is small; this would not scale directly to a much larger N-body
+  problem without redesign.
+
+Conclusion
+-----------
+Of four independently measured optimization attempts, only manual loop
+unrolling improved on baseline, and only modestly, at about 9%. This
+indicates the benchmark's original code, from the Computer Language
+Benchmarks Game, is already close to optimal for what pure CPython can
+do at this problem size.
+
+The dominant remaining cost -- per-scalar float boxing and
+deallocation, about 9.3% of self-time -- is structural to CPython's
+object model for arithmetic. The Gravity Force Pipeline hardware
+proposal targets that directly: moving the entire pairwise force
+computation, accumulation, and position integration into fixed-function
+hardware, parallelized across all 10 pairs and looped internally for
+all n timesteps, removes both identified bottlenecks (interpreter
+dispatch, float boxing) at the root rather than reducing how often
+they're paid -- the ceiling every software attempt above ran into.

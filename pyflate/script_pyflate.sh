@@ -126,3 +126,8 @@ PYEOF
 echo
 echo "See COMPARISON.md in this directory for the full write-up (timing,"
 echo "perf stat hardware counters, self%-ranked hotspots, flame graphs)."
+echo
+echo "Hardware acceleration proposal (Section 9) and RTL source (not run by"
+echo "this script — no synthesis/simulation, per the assignment's scope):"
+echo "report_pyflate.txt's Hardware Acceleration Proposal section,"
+echo "hardware/hfdu.sv, hardware/block_diagram.png"

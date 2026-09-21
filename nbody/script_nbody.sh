@@ -139,3 +139,7 @@ echo
 echo "Only optimized_unroll_experiment beats the baseline — see OPTIMIZATIONS.md"
 echo "and COMPARISON.md for the full analysis and root-cause writeups of all"
 echo "four attempts."
+echo
+echo "Hardware acceleration proposal (Section 9) and RTL source (not run by"
+echo "this script — no synthesis/simulation, per the assignment's scope):"
+echo "HARDWARE.md, hardware/gravity_force_pipeline.sv, hardware/block_diagram.png"
